@@ -34,8 +34,8 @@ public class SimpleBot extends TelegramLongPollingBot {
     @Value("${aws.bucket}")
     private  String bucketName;
 
-    private static final String REMOTE_FILE_NAME =
-            "https://api.telegram.org/bot%S/%S";
+
+
 
     private static final String FILE_PATH_FORMAT = "/%S/photo-%S";
 
@@ -45,7 +45,8 @@ public class SimpleBot extends TelegramLongPollingBot {
     }
 
     private void uploadFileToS3(String fileName, java.io.File file) {
-        AmazonS3 s3client = AmazonS3ClientBuilder.standard().build();
+        String region =  System.getenv("aws-region");
+        AmazonS3 s3client = AmazonS3ClientBuilder.standard().withRegion(region).build();
         s3client.putObject(new PutObjectRequest(bucketName, fileName, file));
     }
 
