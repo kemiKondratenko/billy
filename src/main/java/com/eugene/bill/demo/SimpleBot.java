@@ -57,20 +57,16 @@ public class SimpleBot extends TelegramLongPollingBot {
 
     private void process(Update update) {
         try {
-            if (!update.hasMessage() && !update.getMessage().hasPhoto()) {
+            if (update.hasMessage() && update.getMessage().hasPhoto()) {
                 return;
             }
             Message message = update.getMessage();
             String currentTime = String.valueOf(System.currentTimeMillis());
             Integer userId = message.getFrom().getId();
-            List<PhotoSize> photos = getPhotos(update);
-            photos.forEach(
-                    photo -> {
-                        String photoPath = getFilePath(photo);
-                        java.io.File photoFile = downloadPhotoByFilePath(photoPath);
-                        uploadFileToS3(String.format(FILE_PATH_FORMAT, userId.toString(), currentTime), photoFile);
-                    }
-            );
+            PhotoSize photo = getPhoto(update);
+            String photoPath = getFilePath(photo);
+            java.io.File photoFile = downloadPhotoByFilePath(photoPath);
+            uploadFileToS3(String.format(FILE_PATH_FORMAT, userId.toString(), currentTime), photoFile);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -78,16 +74,15 @@ public class SimpleBot extends TelegramLongPollingBot {
 
     }
 
-    private List<PhotoSize> getPhotos(Update update) {
+    private PhotoSize getPhoto(Update update) {
         // When receiving a photo, you usually get different sizes of it
         List<PhotoSize> photos = update.getMessage().getPhoto();
 
         // We fetch the bigger photo
         return photos.stream()
                 .sorted(Comparator.comparing(PhotoSize::getFileSize).reversed())
-                .limit(photos.size() / 2).collect(
-                        Collectors.toList()
-                );
+                .findFirst()
+                .orElse(null);
 
     }
 
