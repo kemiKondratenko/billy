@@ -1,18 +1,19 @@
 package com.eugene.bill.demo;
 
-import org.apache.commons.io.FileUtils;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.api.methods.GetFile;
 import org.telegram.telegrambots.api.objects.File;
+import org.telegram.telegrambots.api.objects.Message;
 import org.telegram.telegrambots.api.objects.PhotoSize;
 import org.telegram.telegrambots.api.objects.Update;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.exceptions.TelegramApiException;
 
 import javax.annotation.PostConstruct;
-import java.io.PrintWriter;
-import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -30,17 +31,22 @@ public class SimpleBot extends TelegramLongPollingBot {
     private String botName;
     @Value("${bot.token}")
     private String botToken;
-    @Value("${bot.location}")
-    private String location;
+    @Value("${aws.bucket}")
+    private  String bucketName;
 
     private static final String REMOTE_FILE_NAME =
             "https://api.telegram.org/bot%S/%S";
 
+    private static final String FILE_PATH_FORMAT = "/%S/photo-%S";
+
     @PostConstruct
     public void init() {
         executorService = Executors.newFixedThreadPool(4);
-        if (System.getenv("TELEGRAM_ROOT") != null)
-            location = System.getenv("TELEGRAM_ROOT");
+    }
+
+    private void uploadFileToS3(String fileName, java.io.File file) {
+        AmazonS3 s3client = AmazonS3ClientBuilder.standard().build();
+        s3client.putObject(new PutObjectRequest(bucketName, fileName, file));
     }
 
     @Override
@@ -50,41 +56,17 @@ public class SimpleBot extends TelegramLongPollingBot {
 
     private void process(Update update) {
         try {
-            if (!update.getMessage().hasPhoto()) return;
-            String currentTime = String.valueOf(System.currentTimeMillis());
-            java.io.File folder =
-                    Paths.get(
-                            location,
-                            String.valueOf(
-                                    update.getMessage().getFrom().getId())
-                    ).toFile();
-            folder.mkdir();
-            java.io.File logFile =
-                    Paths.get(
-                            folder.getPath(),
-                            currentTime + ".myD"
-                    ).toFile();
-            logFile.createNewFile();
-            try (PrintWriter writer = new PrintWriter(logFile)) {
-                PhotoSize photoSize = getPhoto(update);
-                String photoPath = getFilePath(photoSize);
-                java.io.File photo = downloadPhotoByFilePath(photoPath);
-                java.io.File photoFile =
-                        Paths.get(
-                                folder.getPath(),
-                                currentTime + photoPath.substring(photoPath.lastIndexOf("."), photoPath.length())
-                        ).toFile();
-                photoFile.createNewFile();
-                FileUtils.copyFile(photo, photoFile);
-                if (photoSize.getFilePath() != null) {
-                    writer.println(
-                            "file = " +
-                                    String.format(
-                                            REMOTE_FILE_NAME,
-                                            getBotToken(),
-                                            photoSize.getFilePath()));
-                }
+            Message message = update.getMessage();
+            if (!message.hasPhoto()) {
+                return;
             }
+            String currentTime = String.valueOf(System.currentTimeMillis());
+            Integer userId = message.getFrom().getId();
+            PhotoSize photoSize = getPhoto(update);
+            String photoPath = getFilePath(photoSize);
+            java.io.File photo = downloadPhotoByFilePath(photoPath);
+            uploadFileToS3(String.format(FILE_PATH_FORMAT, userId, currentTime), photo);
+
         } catch (Exception e) {
             e.printStackTrace();
         }
