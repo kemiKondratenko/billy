@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 @Service
 public class SimpleBot extends TelegramLongPollingBot {
@@ -32,9 +34,7 @@ public class SimpleBot extends TelegramLongPollingBot {
     @Value("${bot.token}")
     private String botToken;
     @Value("${aws.bucket}")
-    private  String bucketName;
-
-
+    private String bucketName;
 
 
     private static final String FILE_PATH_FORMAT = "user_%s/photo-%s.jpg";
@@ -45,7 +45,7 @@ public class SimpleBot extends TelegramLongPollingBot {
     }
 
     private void uploadFileToS3(String fileName, java.io.File file) {
-        String region =  System.getenv("aws-region");
+        String region = System.getenv("aws-region");
         AmazonS3 s3client = AmazonS3ClientBuilder.standard().withRegion(region).build();
         s3client.putObject(new PutObjectRequest(bucketName, fileName, file));
     }
@@ -57,16 +57,20 @@ public class SimpleBot extends TelegramLongPollingBot {
 
     private void process(Update update) {
         try {
-            Message message = update.getMessage();
-            if (!message.hasPhoto()) {
+            if (!update.hasMessage() && !update.getMessage().hasPhoto()) {
                 return;
             }
+            Message message = update.getMessage();
             String currentTime = String.valueOf(System.currentTimeMillis());
             Integer userId = message.getFrom().getId();
-            PhotoSize photoSize = getPhoto(update);
-            String photoPath = getFilePath(photoSize);
-            java.io.File photo = downloadPhotoByFilePath(photoPath);
-            uploadFileToS3(String.format(FILE_PATH_FORMAT, userId.toString() , currentTime), photo);
+            List<PhotoSize> photos = getPhotos(update);
+            photos.forEach(
+                    photo -> {
+                        String photoPath = getFilePath(photo);
+                        java.io.File photoFile = downloadPhotoByFilePath(photoPath);
+                        uploadFileToS3(String.format(FILE_PATH_FORMAT, userId.toString(), currentTime), photoFile);
+                    }
+            );
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -74,21 +78,17 @@ public class SimpleBot extends TelegramLongPollingBot {
 
     }
 
-    private PhotoSize getPhoto(Update update) {
-        // Check that the update contains a message and the message has a photo
-        if (update.hasMessage() && update.getMessage().hasPhoto()) {
-            // When receiving a photo, you usually get different sizes of it
-            List<PhotoSize> photos = update.getMessage().getPhoto();
+    private List<PhotoSize> getPhotos(Update update) {
+        // When receiving a photo, you usually get different sizes of it
+        List<PhotoSize> photos = update.getMessage().getPhoto();
 
-            // We fetch the bigger photo
-            return photos.stream()
-                    .sorted(Comparator.comparing(PhotoSize::getFileSize).reversed())
-                    .findFirst()
-                    .orElse(null);
-        }
+        // We fetch the bigger photo
+        return photos.stream()
+                .sorted(Comparator.comparing(PhotoSize::getFileSize).reversed())
+                .limit(photos.size() / 2).collect(
+                        Collectors.toList()
+                );
 
-        // Return null if not found
-        return null;
     }
 
     public String getFilePath(PhotoSize photo) {
