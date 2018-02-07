@@ -37,7 +37,7 @@ public class SimpleBot extends TelegramLongPollingBot {
 
 
 
-    private static final String FILE_PATH_FORMAT = "/%S/photo-%S";
+    private static final String FILE_PATH_FORMAT = "user_%s/photo-%s.jpg";
 
     @PostConstruct
     public void init() {
@@ -66,7 +66,7 @@ public class SimpleBot extends TelegramLongPollingBot {
             PhotoSize photoSize = getPhoto(update);
             String photoPath = getFilePath(photoSize);
             java.io.File photo = downloadPhotoByFilePath(photoPath);
-            uploadFileToS3(String.format(FILE_PATH_FORMAT, userId, currentTime), photo);
+            uploadFileToS3(String.format(FILE_PATH_FORMAT, userId.toString() , currentTime), photo);
 
         } catch (Exception e) {
             e.printStackTrace();
