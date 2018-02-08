@@ -6,6 +6,7 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.api.methods.GetFile;
+import org.telegram.telegrambots.api.methods.send.SendMessage;
 import org.telegram.telegrambots.api.objects.File;
 import org.telegram.telegrambots.api.objects.Message;
 import org.telegram.telegrambots.api.objects.PhotoSize;
@@ -19,15 +20,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Collector;
-import java.util.stream.Collectors;
 
 @Service
 public class SimpleBot extends TelegramLongPollingBot {
 
-
     private ExecutorService executorService;
-
 
     @Value("${bot.name}")
     private String botName;
@@ -35,7 +32,6 @@ public class SimpleBot extends TelegramLongPollingBot {
     private String botToken;
     @Value("${aws.bucket}")
     private String bucketName;
-
 
     private static final String FILE_PATH_FORMAT = "user_%s/photo-%s.jpg";
 
@@ -56,19 +52,33 @@ public class SimpleBot extends TelegramLongPollingBot {
     }
 
     private void process(Update update) {
+        String userName = null;
+        long chatId = -1L;
+
         try {
-            if (update.hasMessage() && update.getMessage().hasPhoto()) {
+            if (!update.hasMessage() && !update.getMessage().hasPhoto()) {
                 return;
             }
             Message message = update.getMessage();
+            chatId = message.getChatId();
+            userName = message.getFrom().getUserName();
             String currentTime = String.valueOf(System.currentTimeMillis());
             Integer userId = message.getFrom().getId();
             PhotoSize photo = getPhoto(update);
             String photoPath = getFilePath(photo);
             java.io.File photoFile = downloadPhotoByFilePath(photoPath);
             uploadFileToS3(String.format(FILE_PATH_FORMAT, userId.toString(), currentTime), photoFile);
+            SendMessage response = new SendMessage();
+            response.setChatId(chatId).setText("Photo saved");
+            execute(response);
 
         } catch (Exception e) {
+            if (userName != null && chatId != -1 &&
+                    (userName.equals("oteta_da") || userName.equals("evilkemi"))) {
+                SendMessage response = new SendMessage();
+                response.setChatId(chatId)
+                        .setText(String.format("ERROR %s", e.getMessage()));
+            }
             e.printStackTrace();
         }
 
