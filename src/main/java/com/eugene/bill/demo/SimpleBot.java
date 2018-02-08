@@ -78,6 +78,11 @@ public class SimpleBot extends TelegramLongPollingBot {
                 SendMessage response = new SendMessage();
                 response.setChatId(chatId)
                         .setText(String.format("ERROR %s", e.getMessage()));
+                try {
+                    execute(response);
+                } catch (TelegramApiException e1) {
+                    e1.printStackTrace();
+                }
             }
             e.printStackTrace();
         }
