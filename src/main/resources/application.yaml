@@ -1,0 +1,14 @@
+bot:
+ name: sum_my_bill_bot
+ prod:
+  token: 497463806:AAHLHJrkNIK0ZcwWXox5k7MDHgrstPwxqKE
+ test:
+  token: 433714930:AAE0hfYsZq7Os5mWe0WlcE2MT8lFOr_egps
+aws:
+ bucket: billy-photos
+ region: eu-west-1
+ que:
+  prod:
+    url: https://sqs.eu-west-1.amazonaws.com/922729651105/process
+  test:
+    url: https://sqs.eu-west-1.amazonaws.com/922729651105/process

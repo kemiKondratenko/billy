@@ -3,6 +3,9 @@ package com.eugene.bill.demo;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.sqs.AmazonSQS;
+import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
+import com.amazonaws.services.sqs.model.SendMessageRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.api.methods.GetFile;
@@ -24,26 +27,29 @@ import java.util.concurrent.Executors;
 @Service
 public class SimpleBot extends TelegramLongPollingBot {
 
-    private ExecutorService executorService;
 
     @Value("${bot.name}")
     private String botName;
-    @Value("${bot.token}")
+    @Value("${bot.prod.token}")
     private String botToken;
     @Value("${aws.bucket}")
     private String bucketName;
+    @Value("${aws.region}")
+    private String region;
+    @Value("${aws.que.prod.url}")
+    private String queUrl;
 
     private static final String FILE_PATH_FORMAT = "user_%s/photo-%s.jpg";
+
+    private ExecutorService executorService;
+    private AmazonS3 s3client;
+    private AmazonSQS amazonSQS;
 
     @PostConstruct
     public void init() {
         executorService = Executors.newFixedThreadPool(4);
-    }
-
-    private void uploadFileToS3(String fileName, java.io.File file) {
-        String region = System.getenv("aws-region");
-        AmazonS3 s3client = AmazonS3ClientBuilder.standard().withRegion(region).build();
-        s3client.putObject(new PutObjectRequest(bucketName, fileName, file));
+        s3client = AmazonS3ClientBuilder.standard().withRegion(region).build();
+        amazonSQS = AmazonSQSClientBuilder.standard().withRegion(region).build();
     }
 
     @Override
@@ -67,7 +73,9 @@ public class SimpleBot extends TelegramLongPollingBot {
             PhotoSize photo = getPhoto(update);
             String photoPath = getFilePath(photo);
             java.io.File photoFile = downloadPhotoByFilePath(photoPath);
-            uploadFileToS3(String.format(FILE_PATH_FORMAT, userId.toString(), currentTime), photoFile);
+            String amazonPhotoName = String.format(FILE_PATH_FORMAT, userId.toString(), currentTime);
+            uploadFileToS3(amazonPhotoName, photoFile);
+            pushMessageToSqsProcess(userId, amazonPhotoName);
             SendMessage response = new SendMessage();
             response.setChatId(chatId).setText("Photo saved");
             execute(response);
@@ -87,6 +95,23 @@ public class SimpleBot extends TelegramLongPollingBot {
             e.printStackTrace();
         }
 
+    }
+
+    private void uploadFileToS3(String fileName, java.io.File file) {
+        s3client.putObject(new PutObjectRequest(bucketName, fileName, file));
+    }
+
+    private void pushMessageToSqsProcess(Integer userId, String amazonPhotoName) {
+        amazonSQS.sendMessage(
+                new SendMessageRequest(
+                        queUrl,
+                        String.format(
+                                "{\"uset_id\":\"%s\", \"bucket_name\": \"%s\", \"photo_name\": \"%s\"}",
+                                userId,
+                                bucketName,
+                                amazonPhotoName)
+                )
+        );
     }
 
     private PhotoSize getPhoto(Update update) {
