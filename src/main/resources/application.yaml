@@ -10,5 +10,9 @@ aws:
  que:
   prod:
     url: https://sqs.eu-west-1.amazonaws.com/922729651105/process
+    process:
+      photo: https://sqs.eu-west-1.amazonaws.com/922729651105/bill_extraction
+      bill: https://sqs.eu-west-1.amazonaws.com/922729651105/bill_processing
+      products_info: https://sqs.eu-west-1.amazonaws.com/922729651105/products_info_processing
   test:
     url: https://sqs.eu-west-1.amazonaws.com/922729651105/process

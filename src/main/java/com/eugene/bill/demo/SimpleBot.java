@@ -6,6 +6,7 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
+import com.eugene.bill.demo.model.DetectionRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.api.methods.GetFile;
@@ -75,7 +76,7 @@ public class SimpleBot extends TelegramLongPollingBot {
             java.io.File photoFile = downloadPhotoByFilePath(photoPath);
             String amazonPhotoName = String.format(FILE_PATH_FORMAT, userId.toString(), currentTime);
             uploadFileToS3(amazonPhotoName, photoFile);
-            pushMessageToSqsProcess(userId, amazonPhotoName);
+            pushMessageToSqsProcess(message.getChatId(), amazonPhotoName);
             SendMessage response = new SendMessage();
             response.setChatId(chatId).setText("Photo saved");
             execute(response);
@@ -101,15 +102,18 @@ public class SimpleBot extends TelegramLongPollingBot {
         s3client.putObject(new PutObjectRequest(bucketName, fileName, file));
     }
 
-    private void pushMessageToSqsProcess(Integer userId, String amazonPhotoName) {
+    private void pushMessageToSqsProcess(Long chatId, String amazonPhotoName) {
         amazonSQS.sendMessage(
                 new SendMessageRequest(
                         queUrl,
-                        String.format(
-                                "{\"uset_id\":\"%s\", \"bucket_name\": \"%s\", \"photo_name\": \"%s\"}",
-                                userId,
-                                bucketName,
-                                amazonPhotoName)
+                        Utils.toJson(
+                            new DetectionRequest()
+                                    .type("new")
+                                    .chatId(chatId)
+                                    .bucketName(bucketName)
+                                    .photoName(amazonPhotoName)
+                                    .requestId(System.currentTimeMillis())
+                        )
                 )
         );
     }
