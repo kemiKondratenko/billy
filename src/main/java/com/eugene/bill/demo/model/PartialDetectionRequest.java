@@ -4,9 +4,7 @@ import com.eugene.bill.demo.Utils;
 import com.google.common.collect.Lists;
 import org.springframework.beans.BeanUtils;
 
-import java.util.Collections;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 
 public class PartialDetectionRequest extends DetectionRequest {
@@ -56,12 +54,7 @@ public class PartialDetectionRequest extends DetectionRequest {
         partialDetectionRequest.setType(type);
 
 
-
-        LinkedList<Map<String, Object>> allRequests = getAllRequests(partialDetectionRequest);
-        Map<String, Object> firstRequest = allRequests.removeFirst();
-        if (allRequests.size() > 0) {
-            firstRequest = allRequests.removeFirst();
-        }
+        Map<String, Object> firstRequest = message.getRequest();
 
         if (firstRequest == null
                 || !firstRequest.containsKey("x_max")
@@ -78,20 +71,10 @@ public class PartialDetectionRequest extends DetectionRequest {
         double prevWidth = partialDetectionRequest.x_max - partialDetectionRequest.x_min;
         double prevHeight = partialDetectionRequest.y_max - partialDetectionRequest.y_min;
 
-        for (Map<String, Object> request : allRequests) {
-            double x_max = (double) request.get("x_max");
-            double x_min = (double) request.get("x_min");
-            double y_max = (double) request.get("y_max");
-            double y_min = (double) request.get("y_min");
-
-            partialDetectionRequest.x_max -= (1 - x_max) * prevWidth;
-            partialDetectionRequest.x_min += x_min * prevWidth;
-            partialDetectionRequest.y_max -= (1 - y_max) * prevHeight;
-            partialDetectionRequest.y_min += y_min * prevHeight;
-
-            prevWidth = x_max - x_min;
-            prevHeight = y_max - y_min;
-        }
+        partialDetectionRequest.x_max -= (1 - prediction.getX_max()) * prevWidth;
+        partialDetectionRequest.x_min += prediction.getX_min() * prevWidth;
+        partialDetectionRequest.y_max -= (1 - prediction.getY_max()) * prevHeight;
+        partialDetectionRequest.y_min += prediction.getY_min() * prevHeight;
 
 
         return partialDetectionRequest;

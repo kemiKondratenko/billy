@@ -7,12 +7,17 @@ import java.util.Map;
 
 public class Utils {
 
+    private static Gson gson = new Gson();
+
     public static String toJson(Object o) {
-        return new Gson().toJson(o);
+        return gson.toJson(o);
     }
 
     public static Map<String, Object> fromJson(String o) {
-        return new Gson().fromJson(o, LinkedTreeMap.class);
+        return gson.fromJson(o, LinkedTreeMap.class);
     }
 
+    public static <T> T fromJson(String request, Class<T> detectionResponseClass) {
+        return gson.fromJson(request, detectionResponseClass);
+    }
 }
